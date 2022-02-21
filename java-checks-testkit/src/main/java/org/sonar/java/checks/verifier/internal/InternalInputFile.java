@@ -175,6 +175,6 @@ public final class InternalInputFile extends InternalMockedSonarAPI implements I
 
   @Override
   public Status status() {
-    throw notSupportedException("status()");
+    return Status.CHANGED;
   }
 }

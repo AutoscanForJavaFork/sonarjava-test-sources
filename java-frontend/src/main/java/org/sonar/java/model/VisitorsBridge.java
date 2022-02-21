@@ -62,7 +62,8 @@ public class VisitorsBridge {
   private static final Logger LOG = Loggers.get(VisitorsBridge.class);
 
   private final Iterable<? extends JavaCheck> visitors;
-  private final List<JavaFileScanner> scanners;
+  private final List<JavaFileScanner> scannersForChangedFiles;
+  private final List<JavaFileScanner> scannersForAllFiles;
   private final SonarComponents sonarComponents;
   protected InputFile currentFile;
   protected JavaVersion javaVersion;
@@ -76,26 +77,42 @@ public class VisitorsBridge {
 
   public VisitorsBridge(Iterable<? extends JavaCheck> visitors, List<File> projectClasspath, @Nullable SonarComponents sonarComponents) {
     this.visitors = visitors;
-    this.scanners = new ArrayList<>();
+    this.scannersForChangedFiles = new ArrayList<>();
+    this.scannersForAllFiles = new ArrayList<>();
     this.classpath = projectClasspath;
     this.sonarComponents = sonarComponents;
     updateScanners();
   }
 
   private void updateScanners() {
-    scanners.clear();
-    IssuableSubscriptionVisitorsRunner subscriptionVisitorsRunner = null;
+    scannersForAllFiles.clear();
+    scannersForChangedFiles.clear();
+
+    IssuableSubscriptionVisitorsRunner subscriptionVisitorsRunnerForChangedFiles = null;
+    IssuableSubscriptionVisitorsRunner subscriptionVisitorsRunnerForAllFiles = null;
     for (Object visitor : visitors) {
       if (javaVersion != null && visitor instanceof JavaVersionAwareVisitor && !((JavaVersionAwareVisitor) visitor).isCompatibleWithJavaVersion(javaVersion)) {
         // ignore visitors not compatible with java version
       } else if (visitor instanceof IssuableSubscriptionVisitor) {
-        if (subscriptionVisitorsRunner == null) {
-          subscriptionVisitorsRunner = new IssuableSubscriptionVisitorsRunner();
-          scanners.add(subscriptionVisitorsRunner);
+        if (subscriptionVisitorsRunnerForChangedFiles == null) {
+          subscriptionVisitorsRunnerForChangedFiles = new IssuableSubscriptionVisitorsRunner();
+          scannersForChangedFiles.add(subscriptionVisitorsRunnerForChangedFiles);
         }
-        subscriptionVisitorsRunner.add((IssuableSubscriptionVisitor) visitor);
+        subscriptionVisitorsRunnerForChangedFiles.add((IssuableSubscriptionVisitor) visitor);
+
+        if (visitor instanceof EndOfAnalysisCheck || !visitor.getClass().getName().startsWith("org.sonar.java.")) {
+          if (subscriptionVisitorsRunnerForAllFiles == null) {
+            subscriptionVisitorsRunnerForAllFiles = new IssuableSubscriptionVisitorsRunner();
+            scannersForAllFiles.add(subscriptionVisitorsRunnerForAllFiles);
+          }
+          subscriptionVisitorsRunnerForAllFiles.add((IssuableSubscriptionVisitor) visitor);
+        }
       } else if (visitor instanceof JavaFileScanner) {
-        scanners.add((JavaFileScanner) visitor);
+        scannersForChangedFiles.add((JavaFileScanner) visitor);
+
+        if (visitor instanceof EndOfAnalysisCheck || !visitor.getClass().getName().startsWith("org.sonar.java.")) {
+          scannersForAllFiles.add((JavaFileScanner) visitor);
+        }
       }
     }
   }
@@ -133,6 +150,9 @@ public class VisitorsBridge {
     JavaFileScannerContext javaFileScannerContext = createScannerContext(tree, tree.sema, sonarComponents, fileParsed);
 
     PerformanceMeasure.Duration scannersDuration = PerformanceMeasure.start("Scanners");
+
+    var scanners = getScanners(tree.hasChanged);
+
     for (JavaFileScanner scanner : scanners) {
       PerformanceMeasure.Duration scannerDuration = PerformanceMeasure.start(scanner);
       try {
@@ -144,6 +164,10 @@ public class VisitorsBridge {
       }
     }
     scannersDuration.stop();
+  }
+
+  private List<JavaFileScanner> getScanners(boolean changed) {
+    return changed ? scannersForChangedFiles : scannersForAllFiles;
   }
 
   private void interruptIfFailFast(CheckFailureException e) {
@@ -218,7 +242,7 @@ public class VisitorsBridge {
   public void processRecognitionException(RecognitionException e, InputFile inputFile) {
     if(sonarComponents == null || !sonarComponents.reportAnalysisError(e, inputFile)) {
       this.visitFile(null);
-      scanners.stream()
+      getScanners(inputFile.status() != InputFile.Status.SAME).stream()
         .filter(ExceptionHandler.class::isInstance)
         .forEach(scanner -> ((ExceptionHandler) scanner).processRecognitionException(e));
     }
@@ -229,7 +253,7 @@ public class VisitorsBridge {
   }
 
   public void endOfAnalysis() {
-    scanners.stream()
+    scannersForAllFiles.stream()
       .filter(EndOfAnalysisCheck.class::isInstance)
       .map(EndOfAnalysisCheck.class::cast)
       .forEach(EndOfAnalysisCheck::endOfAnalysis);

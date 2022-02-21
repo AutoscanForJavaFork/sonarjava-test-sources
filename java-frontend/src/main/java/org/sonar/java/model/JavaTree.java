@@ -150,6 +150,8 @@ public abstract class JavaTree implements Tree {
   }
 
   public static class CompilationUnitTreeImpl extends JavaTree implements CompilationUnitTree {
+    public boolean hasChanged = true;
+
     @Nullable
     private final PackageDeclarationTree packageDeclaration;
     private final List<ImportClauseTree> imports;

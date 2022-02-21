@@ -153,6 +153,7 @@ ruling_task:
   <<: *ONLY_SONARSOURCE_QA
   gke_container:
     <<: *CONTAINER_DEFINITION
+    image: gcr.io/language-team/base-jdk17:latest
     cpu: 8
     memory: 16G
   maven_cache:
@@ -170,7 +171,15 @@ ruling_win_task:
   depends_on:
     - build
   <<: *ONLY_SONARSOURCE_QA
-  <<: *WINDOWS_VM_DEFINITION
+  gce_instance:
+    image_project: language-team
+    image_family: lt-base-windows-jdk17
+    platform: windows
+    zone: us-central1-a
+    preemptible: false
+    disk: 128
+    use_ssd: true
+    type: n2d-standard-4
   maven_cache:
     folder: ${CIRRUS_WORKING_DIR}/.m2/repository
   ruling_script:

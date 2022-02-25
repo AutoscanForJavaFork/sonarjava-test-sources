@@ -43,19 +43,7 @@
     <developer><name>Tibor Blenessy</name>       <id>saberduck</id>                        <organization>SonarSource</organization></developer>
   </developers>
 
-  <modules>
-    <module>jdt</module>
-    <module>java-checks-test-sources</module>
-    <module>java-frontend</module>
-    <module>java-symbolic-execution</module>
-    <module>java-checks-testkit</module>
-    <module>java-checks</module>
-    <module>external-reports</module>
-    <module>sonar-java-plugin</module>
-    <module>java-surefire</module>
-    <module>java-jsp</module>
-    <module>its</module>
-    <module>docs</module>
+  <modules><module>java-checks-test-sources</module>
   </modules>
 
   <scm>

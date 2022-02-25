@@ -1,4 +1,0 @@
-package PACKAGE;
-
-class BadPackageName {
-}

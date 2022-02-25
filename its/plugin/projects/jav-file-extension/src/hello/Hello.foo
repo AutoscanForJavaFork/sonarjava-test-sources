@@ -1,7 +1,0 @@
-package hello;
-
-public class Hello {
-  void method(){
-    System.out.println("Hello");
-  }
-}
